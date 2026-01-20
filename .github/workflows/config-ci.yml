@@ -1,0 +1,57 @@
+name: Config Quality Gate
+
+on:
+    push:
+        paths:
+            - "**.yaml"
+            - "**.yml"
+            - ".github/workflows/**"
+    pull_request:
+        paths:
+            - "**.yaml"
+            - "**.yml"
+
+jobs:
+    validate-and-transform:
+        name: Validate, Audit, and Transform
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+
+            - name: Install yq (v4+)
+              run: |
+                  echo "Installing yq..."
+                  sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+                  sudo chmod +x /usr/local/bin/yq
+                  echo "yq version: $(yq --version)"
+
+            - name: Setup Scripts
+              run: chmod +x scripts/*.sh
+
+            - name: Environment Setup Log
+              run: |
+                  echo "----------------------------------------"
+                  echo "Starting Quality Gate Pipeline"
+                  echo "Runner: ubuntu-latest"
+                  echo "Date: $(date)"
+                  echo "----------------------------------------"
+
+            - name: 1. Linting Stage - YAML Syntax Check
+              run: ./scripts/lint.sh app-config.yaml
+
+            - name: 2. Security Audit - Password Placeholder Check
+              run: ./scripts/security-audit.sh app-config.yaml
+
+            - name: 3. Sync Check - Ensure JSON matches YAML
+              run: ./scripts/check-sync.sh app-config.yaml app-config.json
+
+            - name: 4. Deep Validation - Verify JSON Integrity
+              run: ./scripts/validate-json.sh app-config.json
+
+            - name: Artifact Archiving
+              uses: actions/upload-artifact@v4
+              with:
+                  name: app-config-json
+                  path: app-config.json
+                  retention-days: 5
